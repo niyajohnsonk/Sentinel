@@ -1,0 +1,30 @@
+{
+  "scams": [
+    {
+      "text": "SBI Alert: Your account is permanently blocked due to KYC pending. Click bit.ly/sbi-update to verify immediately.",
+      "score": 100
+    },
+    {
+      "text": "Cyber Crime: Legal action and arrest warrant issued against you. Pay Rs 50000 to dismiss. Call us immediately.",
+      "score": 100
+    },
+    {
+      "text": "Congratulations! You have won a lucky draw prize of Rs 1,00,000. Share OTP to claim your reward.",
+      "score": 100
+    }
+  ],
+  "safes": [
+    {
+      "text": "Hey Rahul, are we still meeting for lunch today? Let me know.",
+      "score": 0
+    },
+    {
+      "text": "HDFC Bank: Your order payment of Rs 500 is confirmed. Do not share this OTP with anyone. Your order will be delivered soon.",
+      "score": 28
+    },
+    {
+      "text": "SBI never asks for OTP. OTP for transaction of Rs 1000 is 4829.",
+      "score": 28
+    }
+  ]
+}

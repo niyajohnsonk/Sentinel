@@ -1,0 +1,18 @@
+{
+  "originalRulesEngineScoreWas": 28,
+  "mlResult": {
+    "score": 0,
+    "band": "LOW",
+    "action": "allow",
+    "reasons": [
+      "⚠️ Credential / Payment Request: \"otp\"",
+      "✅ Legitimacy Signals: \"do not share\"",
+      "✅ Legitimacy Signals: \"do not share this otp\"",
+      "✅ Legitimacy Signals: \"not share\""
+    ],
+    "matchedCategories": [
+      "Credential / Payment Request",
+      "Legitimacy Signals"
+    ]
+  }
+}

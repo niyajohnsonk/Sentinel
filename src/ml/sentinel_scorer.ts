@@ -236,7 +236,7 @@ export function scoreSMS(rawText: string): ScoreResult {
     for (const [token, weight] of Object.entries(category.tokens)) {
       if (text.includes(token.toLowerCase())) {
         const contribution = weight * Math.abs(category.multiplier);
-        rawScore += category.multiplier < 0 ? -contribution : contribution;
+        rawScore += contribution;
 
         if (Math.abs(contribution) >= 60) {
           const sign = category.multiplier > 0 ? "⚠️" : "✅";
