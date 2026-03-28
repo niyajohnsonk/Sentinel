@@ -16,6 +16,7 @@
     "@types/uuid": "^10.0.0",
     "expo": "~54.0.0",
     "expo-blur": "~15.0.8",
+    "expo-dev-client": "~6.0.20",
     "expo-haptics": "~15.0.8",
     "expo-linear-gradient": "~15.0.8",
     "expo-sqlite": "~16.0.10",
