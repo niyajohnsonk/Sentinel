@@ -1,4 +1,5 @@
 import { SourceType, ThreatAnalysisResult, Severity, Label } from '../types';
+import { scoreSMS } from '../ml/sentinel_scorer';
 
 export const generateId = () => Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
 
@@ -143,6 +144,27 @@ export function analyzeThreat(content: string, sourceType: SourceType, sourceLab
     } else if (hasUrgency && hasLink) {
       addScore(25, "Urgency driving to an external link", "High-Risk Link Delivery");
     }
+  }
+
+  // --- HYBRID SCORING FOR SMS ---
+  if (sourceType === 'SMS') {
+    const mlResult = scoreSMS(content);
+    const rulesScore = score;
+    
+    // Blended Approach: 50% Heuristics + 50% ML
+    score = Math.round((rulesScore * 0.5) + (mlResult.score * 0.5));
+    
+    // If either engine is extremely confident (>80), trust it fully to avoid dilution
+    if (rulesScore > 80 || mlResult.score > 80) {
+      score = Math.max(rulesScore, mlResult.score);
+    }
+    
+    // Merge ML insights explicitly
+    mlResult.reasons.forEach(reason => {
+      const formattedReason = `[ML] ${reason}`;
+      if (!reasons.includes(formattedReason)) reasons.push(formattedReason);
+    });
+    mlResult.matchedCategories.forEach(cat => matchedSignals.add(`[ML] ${cat}`));
   }
 
   score = Math.min(score, 100);

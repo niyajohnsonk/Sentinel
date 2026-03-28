@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, KeyboardAvoidingView, Platform, Keyboard } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TextInput, KeyboardAvoidingView, Platform, Keyboard, AppState, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Link2, ShieldAlert } from 'lucide-react-native';
+import { Link2, ShieldAlert, CheckCircle2 } from 'lucide-react-native';
+import * as ExpoClipboard from 'expo-clipboard';
 
 import { Theme } from '../theme';
 import { Header } from '../components/Header';
@@ -17,6 +18,11 @@ export const URLScannerScreen = () => {
   const [isScanning, setIsScanning] = useState(false);
   const [hasScanned, setHasScanned] = useState(false);
   const [result, setResult] = useState<ThreatAnalysisResult | null>(null);
+
+  const [clipboardUrl, setClipboardUrl] = useState('');
+  const [clipboardResult, setClipboardResult] = useState<ThreatAnalysisResult | null>(null);
+  const [isClipboardScanning, setIsClipboardScanning] = useState(false);
+  const lastClipboardString = useRef('');
 
   const handleScan = () => {
     Keyboard.dismiss();
@@ -47,6 +53,66 @@ export const URLScannerScreen = () => {
     }
   };
 
+  const checkClipboard = async (manual = false) => {
+    if (manual) setIsClipboardScanning(true);
+    try {
+      const hasString = await ExpoClipboard.hasStringAsync();
+      if (!hasString) {
+        if (manual) {
+          setClipboardUrl('');
+          setClipboardResult(null);
+        }
+        return;
+      }
+
+      const content = await ExpoClipboard.getStringAsync();
+      
+      // Deduplicate
+      if (!manual && content === lastClipboardString.current) return;
+      lastClipboardString.current = content;
+
+      // Extract URL
+      const urlRegex = /https?:\/\/[^\s]+/i;
+      const match = content.match(urlRegex);
+      
+      if (match) {
+        const foundUrl = match[0];
+        setClipboardUrl(foundUrl);
+        const analysis = analyzeThreat(foundUrl, 'URL');
+        setClipboardResult(analysis);
+        if (analysis.isFlagged) {
+          saveThreat(analysis);
+        }
+      } else if (manual) {
+        setClipboardUrl('');
+        setClipboardResult(null);
+      }
+    } catch (e) {
+      console.warn("Failed to check clipboard", e);
+    } finally {
+      if (manual) setIsClipboardScanning(false);
+    }
+  };
+
+  useEffect(() => {
+    checkClipboard();
+
+    const sub = ExpoClipboard.addClipboardListener(() => {
+      checkClipboard();
+    });
+
+    const appStateSub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        checkClipboard();
+      }
+    });
+
+    return () => {
+      if (sub && sub.remove) sub.remove();
+      if (appStateSub && appStateSub.remove) appStateSub.remove();
+    };
+  }, []);
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <Header title="URL Scanner" showBack={false} />
@@ -55,31 +121,93 @@ export const URLScannerScreen = () => {
         style={styles.content} 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <Card style={styles.inputCard}>
-          <Text style={styles.label}>Paste a suspicious link to verify</Text>
-          <View style={styles.inputWrapper}>
-            <Link2 size={20} color={Theme.colors.textSecondary} style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. https://secure-login-paypol.com"
-              value={url}
-              onChangeText={(text) => {
-                setUrl(text);
-                setHasScanned(false);
-              }}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="url"
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+          <Card style={styles.inputCard}>
+            <Text style={styles.label}>Paste a suspicious link to verify</Text>
+            <View style={styles.inputWrapper}>
+              <Link2 size={20} color={Theme.colors.textSecondary} style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. https://secure-login-paypol.com"
+                value={url}
+                onChangeText={(text) => {
+                  setUrl(text);
+                  setHasScanned(false);
+                }}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="url"
+              />
+            </View>
+            <Button 
+              title="Scan URL" 
+              onPress={handleScan} 
+              loading={isScanning}
+              disabled={!url.trim()}
+              style={styles.scanBtn}
             />
-          </View>
-          <Button 
-            title="Scan URL" 
-            onPress={handleScan} 
-            loading={isScanning}
-            disabled={!url.trim()}
-            style={styles.scanBtn}
-          />
-        </Card>
+          </Card>
+
+          {clipboardResult && clipboardUrl ? (
+            <Card style={styles.clipboardCard}>
+              <View style={styles.clipboardHeaderRow}>
+                <View style={styles.clipboardStatus}>
+                  <Link2 size={16} color={Theme.colors.textSecondary} />
+                  <Text style={styles.clipboardStatusText}>Clipboard Monitored</Text>
+                </View>
+                <CheckCircle2 size={16} color={Theme.colors.safe} />
+              </View>
+
+              <View style={styles.resultHeader}>
+                <RiskBadge level={clipboardResult.severity} size="medium" />
+                <View style={[styles.scoreBox, clipboardResult.severity !== 'high' ? { backgroundColor: Theme.colors.safe + '20' } : null] as any}>
+                  <Text style={[styles.scoreText, clipboardResult.severity !== 'high' ? { color: Theme.colors.safe } : null] as any}>{clipboardResult.score}/100</Text>
+                </View>
+              </View>
+
+              <Text style={styles.resultUrl} numberOfLines={2}>
+                {getHostname(clipboardUrl)}
+              </Text>
+              
+              <Text style={styles.resultLabel}>{clipboardResult.label}</Text>
+
+              {clipboardResult.reasons.length > 0 && (
+                <View style={styles.clipboardReasons}>
+                  <Text style={styles.reasonsTitle}>Detection Signals:</Text>
+                  {clipboardResult.reasons.map((reason, i) => (
+                    <View key={i} style={styles.reasonRow}>
+                      <View style={styles.bullet} />
+                      <Text style={styles.reasonText}>{reason}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+              
+              <Button 
+                title="Scan Clipboard Again" 
+                onPress={() => checkClipboard(true)} 
+                variant="secondary"
+                loading={isClipboardScanning}
+                style={styles.clipboardBtn}
+              />
+            </Card>
+          ) : (
+            <Card style={styles.clipboardEmpty}>
+              <View style={styles.clipboardStatus}>
+                <Link2 size={16} color={Theme.colors.textSecondary} />
+                <Text style={styles.clipboardStatusText}>Clipboard Monitored</Text>
+              </View>
+              <Text style={styles.clipboardEmptyDesc}>We automatically scan copied URLs for threats.</Text>
+              <Button 
+                title="Scan Clipboard" 
+                onPress={() => checkClipboard(true)} 
+                variant="secondary"
+                loading={isClipboardScanning}
+                style={styles.clipboardBtn}
+              />
+            </Card>
+          )}
+
 
         {hasScanned && result && (
           <Card style={[styles.resultCard, result.severity !== 'high' ? { borderColor: Theme.colors.border, borderWidth: 1 } : null] as any}>
@@ -114,6 +242,7 @@ export const URLScannerScreen = () => {
             )}
           </Card>
         )}
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -222,5 +351,54 @@ const styles = StyleSheet.create({
   reasonText: {
     ...Theme.typography.caption,
     color: Theme.colors.textPrimary,
+  },
+  scrollContent: {
+    paddingBottom: Theme.spacing.xxl,
+  },
+  clipboardCard: {
+    marginBottom: Theme.spacing.xl,
+    backgroundColor: Theme.colors.card,
+  },
+  clipboardHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Theme.spacing.md,
+    paddingBottom: Theme.spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Theme.colors.border,
+  },
+  clipboardStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Theme.spacing.sm,
+  },
+  clipboardStatusText: {
+    ...Theme.typography.caption,
+    color: Theme.colors.textSecondary,
+    fontWeight: '500',
+  },
+  clipboardBtn: {
+    marginTop: Theme.spacing.md,
+    width: '100%',
+  },
+  clipboardEmpty: {
+    marginBottom: Theme.spacing.xl,
+    padding: Theme.spacing.lg,
+    alignItems: 'center',
+    borderColor: Theme.colors.border,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+  },
+  clipboardEmptyDesc: {
+    ...Theme.typography.caption,
+    color: Theme.colors.textSecondary,
+    textAlign: 'center',
+    marginTop: Theme.spacing.sm,
+    marginBottom: Theme.spacing.md,
+  },
+  clipboardReasons: {
+    marginTop: Theme.spacing.sm,
+    marginBottom: Theme.spacing.sm,
   },
 });
