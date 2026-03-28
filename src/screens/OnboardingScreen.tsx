@@ -5,6 +5,7 @@ import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { Theme } from '../theme';
 import { Button } from '../components/Button';
@@ -31,9 +32,14 @@ export const OnboardingScreen = () => {
     setToggles(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const handleActivate = () => {
+  const handleActivate = async () => {
     if (toggles.haptics) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+    try {
+      await AsyncStorage.setItem('hasCompletedOnboarding', 'true');
+    } catch (e) {
+      console.warn('Failed to save onboarding state', e);
     }
     navigation.replace('MainTabs');
   };

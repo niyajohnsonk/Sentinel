@@ -19,7 +19,7 @@ export const SMSInboxScreen = () => {
   useEffect(() => {
     const processMessages = async () => {
       const results = mockSmsData.map(msg => {
-        return analyzeThreat(msg.content, 'SMS', msg.sender);
+        return analyzeThreat(msg.content, 'SMS', msg.sender, msg.id);
       });
       setAnalyzedData(results);
       

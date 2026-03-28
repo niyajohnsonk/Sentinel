@@ -1,18 +1,40 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ShieldCheck, PhoneCall, MessageSquare, AlertTriangle } from 'lucide-react-native';
-import { useNavigation } from '@react-navigation/native';
+import { ShieldCheck, PhoneCall, MessageSquare, AlertTriangle, Shield, Link as LinkIcon } from 'lucide-react-native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 
 import { Theme } from '../theme';
 import { Card } from '../components/Card';
 import { MainTabParamList } from '../navigation/AppNavigator';
+import { getStoredThreats } from '../lib/storage';
+import { ThreatAnalysisResult, SourceType } from '../types';
+import { RiskBadge } from '../components/RiskBadge';
 
 type NavigationProp = BottomTabNavigationProp<MainTabParamList, 'Home'>;
 
 export const HomeScreen = () => {
   const navigation = useNavigation<NavigationProp>();
+  const [storedData, setStoredData] = useState<ThreatAnalysisResult[]>([]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const loadData = async () => {
+        const data = await getStoredThreats();
+        setStoredData(data);
+      };
+      loadData();
+    }, [])
+  );
+
+  const todayStr = new Date().toDateString();
+  const threatsToday = storedData.filter(d => new Date(d.timestamp).toDateString() === todayStr).length;
+  const callsFlagged = storedData.filter(d => d.sourceType === 'CALL').length;
+  const smsFlagged = storedData.filter(d => d.sourceType === 'SMS').length;
+  const urlsFlagged = storedData.filter(d => d.sourceType === 'URL').length;
+
+  const recentActivity = storedData.slice(0, 3);
 
   const StatBox = ({ title, count, icon: Icon, color }: any) => (
     <View style={styles.statBox}>
@@ -21,6 +43,23 @@ export const HomeScreen = () => {
       <Text style={styles.statTitle}>{title}</Text>
     </View>
   );
+
+  const getSourceIcon = (type: SourceType, props: any) => {
+    switch (type) {
+      case 'CALL': return <PhoneCall {...props} />;
+      case 'SMS': return <MessageSquare {...props} />;
+      case 'URL': return <LinkIcon {...props} />;
+      default: return <AlertTriangle {...props} />;
+    }
+  };
+
+  const getActivityColor = (severity: string) => {
+    switch (severity) {
+      case 'high': return { bg: Theme.colors.dangerLight, fg: Theme.colors.danger };
+      case 'medium': return { bg: Theme.colors.warning + '20', fg: Theme.colors.warning };
+      default: return { bg: Theme.colors.safeLight, fg: Theme.colors.safe };
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -37,11 +76,12 @@ export const HomeScreen = () => {
         </View>
 
         <Card style={styles.statsCard}>
-          <Text style={styles.sectionTitle}>Today's Summary</Text>
+          <Text style={styles.sectionTitle}>Threat Summary</Text>
           <View style={styles.statsGrid}>
-            <StatBox title="Calls Protected" count="3" icon={PhoneCall} color={Theme.colors.primary} />
-            <StatBox title="SMS Scanned" count="12" icon={MessageSquare} color={Theme.colors.accent} />
-            <StatBox title="Threats Flagged" count="1" icon={AlertTriangle} color={Theme.colors.warning} />
+            <StatBox title="Today" count={threatsToday} icon={AlertTriangle} color={Theme.colors.warning} />
+            <StatBox title="Calls Flagged" count={callsFlagged} icon={PhoneCall} color={Theme.colors.primary} />
+            <StatBox title="SMS Flagged" count={smsFlagged} icon={MessageSquare} color={Theme.colors.accent} />
+            <StatBox title="URLs Flagged" count={urlsFlagged} icon={LinkIcon} color={Theme.colors.danger} />
           </View>
         </Card>
 
@@ -81,27 +121,30 @@ export const HomeScreen = () => {
             </TouchableOpacity>
           </View>
           
-          <View style={styles.activityItem}>
-            <View style={[styles.activityIcon, { backgroundColor: Theme.colors.dangerLight }]}>
-              <PhoneCall size={16} color={Theme.colors.danger} />
+          {recentActivity.length === 0 ? (
+            <View style={styles.emptyActivity}>
+              <Shield size={32} color={Theme.colors.border} />
+              <Text style={styles.emptyTitle}>No recent threats</Text>
+              <Text style={styles.emptyDesc}>Your device is currently secure.</Text>
             </View>
-            <View style={styles.activityContent}>
-              <Text style={styles.activityTitle}>IRS Tax Scam Call Blocked</Text>
-              <Text style={styles.activityTime}>2 hours ago</Text>
-            </View>
-          </View>
-          
-          <View style={styles.activityItem}>
-            <View style={[styles.activityIcon, { backgroundColor: Theme.colors.safeLight }]}>
-              <MessageSquare size={16} color={Theme.colors.safe} />
-            </View>
-            <View style={styles.activityContent}>
-              <Text style={styles.activityTitle}>Delivery SMS Scanned - Safe</Text>
-              <Text style={styles.activityTime}>Yesterday, 4:12 PM</Text>
-            </View>
-          </View>
+          ) : (
+            recentActivity.map(item => {
+              const colors = getActivityColor(item.severity);
+              return (
+                <View key={item.id} style={styles.activityItem}>
+                  <View style={[styles.activityIcon, { backgroundColor: colors.bg }]}>
+                    {getSourceIcon(item.sourceType, { size: 16, color: colors.fg })}
+                  </View>
+                  <View style={styles.activityContent}>
+                    <Text style={styles.activityTitle} numberOfLines={1}>{item.label}</Text>
+                    <Text style={styles.activityTime}>{new Date(item.timestamp).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</Text>
+                  </View>
+                  <RiskBadge level={item.severity} size="small" />
+                </View>
+              );
+            })
+          )}
         </Card>
-
       </ScrollView>
     </SafeAreaView>
   );
@@ -155,10 +198,12 @@ const styles = StyleSheet.create({
   statsGrid: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    rowGap: Theme.spacing.md,
   },
   statBox: {
     alignItems: 'center',
-    flex: 1,
+    flexBasis: '48%',
   },
   statIcon: {
     marginBottom: Theme.spacing.xs,
@@ -226,6 +271,7 @@ const styles = StyleSheet.create({
   },
   activityContent: {
     flex: 1,
+    marginRight: Theme.spacing.sm,
   },
   activityTitle: {
     ...Theme.typography.body,
@@ -233,5 +279,19 @@ const styles = StyleSheet.create({
   },
   activityTime: {
     ...Theme.typography.small,
+  },
+  emptyActivity: {
+    alignItems: 'center',
+    paddingVertical: Theme.spacing.xl,
+  },
+  emptyTitle: {
+    ...Theme.typography.body,
+    fontWeight: '600',
+    color: Theme.colors.textSecondary,
+    marginTop: Theme.spacing.sm,
+  },
+  emptyDesc: {
+    ...Theme.typography.small,
+    color: Theme.colors.textSecondary,
   },
 });

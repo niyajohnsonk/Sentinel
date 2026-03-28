@@ -82,10 +82,10 @@ const TabNavigator = () => {
   );
 };
 
-export const AppNavigator = () => {
+export const AppNavigator = ({ initialRouteName = 'Onboarding' }: { initialRouteName?: keyof RootStackParamList }) => {
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={initialRouteName}>
         <Stack.Screen name="Onboarding" component={OnboardingScreen} />
         <Stack.Screen name="MainTabs" component={TabNavigator} />
       </Stack.Navigator>

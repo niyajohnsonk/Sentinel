@@ -28,7 +28,7 @@ const URL_SHORTENERS = [/bit\.ly/i, /tinyurl\.com/i, /cutt\.ly/i, /t\.co/i, /goo
 const URL_KEYWORDS = [/login/i, /verify/i, /secure/i, /update/i, /bank/i, /account/i, /wallet/i, /kyc/i, /otp/i, /refund/i];
 const URL_TYPO_SQUATTING = [/paypol/i, /g00gle/i, /faceb00k/i, /arnazon/i, /amzon/i, /y0utube/i, /netflix.*free/i];
 
-export function analyzeThreat(content: string, sourceType: SourceType, sourceLabel?: string): ThreatAnalysisResult {
+export function analyzeThreat(content: string, sourceType: SourceType, sourceLabel?: string, providedId?: string): ThreatAnalysisResult {
   let score = 0;
   const reasons: string[] = [];
   const matchedSignals: Set<string> = new Set();
@@ -167,7 +167,7 @@ export function analyzeThreat(content: string, sourceType: SourceType, sourceLab
   }
 
   return {
-    id: generateId(),
+    id: providedId || generateId(),
     sourceType,
     sourceLabel,
     content,
