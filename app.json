@@ -3,6 +3,7 @@
     "name": "sentinel-v2",
     "slug": "sentinel-v2",
     "version": "1.0.0",
+    "scheme": "sentinel",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
