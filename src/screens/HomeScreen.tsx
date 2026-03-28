@@ -1,0 +1,237 @@
+import React from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { ShieldCheck, PhoneCall, MessageSquare, AlertTriangle } from 'lucide-react-native';
+import { useNavigation } from '@react-navigation/native';
+import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+
+import { Theme } from '../theme';
+import { Card } from '../components/Card';
+import { MainTabParamList } from '../navigation/AppNavigator';
+
+type NavigationProp = BottomTabNavigationProp<MainTabParamList, 'Home'>;
+
+export const HomeScreen = () => {
+  const navigation = useNavigation<NavigationProp>();
+
+  const StatBox = ({ title, count, icon: Icon, color }: any) => (
+    <View style={styles.statBox}>
+      <Icon size={24} color={color} style={styles.statIcon} />
+      <Text style={styles.statCount}>{count}</Text>
+      <Text style={styles.statTitle}>{title}</Text>
+    </View>
+  );
+
+  return (
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <ScrollView contentContainerStyle={styles.scroll}>
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.greeting}>Protected & Secure</Text>
+            <Text style={styles.title}>Dashboard</Text>
+          </View>
+          <View style={styles.statusBadge}>
+            <ShieldCheck size={20} color={Theme.colors.safe} />
+            <Text style={styles.statusText}>Active</Text>
+          </View>
+        </View>
+
+        <Card style={styles.statsCard}>
+          <Text style={styles.sectionTitle}>Today's Summary</Text>
+          <View style={styles.statsGrid}>
+            <StatBox title="Calls Protected" count="3" icon={PhoneCall} color={Theme.colors.primary} />
+            <StatBox title="SMS Scanned" count="12" icon={MessageSquare} color={Theme.colors.accent} />
+            <StatBox title="Threats Flagged" count="1" icon={AlertTriangle} color={Theme.colors.warning} />
+          </View>
+        </Card>
+
+        <Text style={[styles.sectionTitle, { marginHorizontal: Theme.spacing.lg, marginTop: Theme.spacing.xl }]}>
+          Quick Access
+        </Text>
+        
+        <View style={styles.actionGrid}>
+          <TouchableOpacity 
+            style={styles.actionCard} 
+            onPress={() => navigation.navigate('Call')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.iconWrapper, { backgroundColor: Theme.colors.primaryLight }]}>
+              <PhoneCall size={24} color={Theme.colors.primary} />
+            </View>
+            <Text style={styles.actionTitle}>Live Call</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.actionCard} 
+            onPress={() => navigation.navigate('SMS')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.iconWrapper, { backgroundColor: Theme.colors.safeLight }]}>
+              <MessageSquare size={24} color={Theme.colors.safe} />
+            </View>
+            <Text style={styles.actionTitle}>SMS Inbox</Text>
+          </TouchableOpacity>
+        </View>
+
+        <Card style={styles.recentCard}>
+          <View style={styles.recentHeader}>
+            <Text style={styles.sectionTitle}>Recent Activity</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Vault')}>
+              <Text style={styles.linkText}>View All</Text>
+            </TouchableOpacity>
+          </View>
+          
+          <View style={styles.activityItem}>
+            <View style={[styles.activityIcon, { backgroundColor: Theme.colors.dangerLight }]}>
+              <PhoneCall size={16} color={Theme.colors.danger} />
+            </View>
+            <View style={styles.activityContent}>
+              <Text style={styles.activityTitle}>IRS Tax Scam Call Blocked</Text>
+              <Text style={styles.activityTime}>2 hours ago</Text>
+            </View>
+          </View>
+          
+          <View style={styles.activityItem}>
+            <View style={[styles.activityIcon, { backgroundColor: Theme.colors.safeLight }]}>
+              <MessageSquare size={16} color={Theme.colors.safe} />
+            </View>
+            <View style={styles.activityContent}>
+              <Text style={styles.activityTitle}>Delivery SMS Scanned - Safe</Text>
+              <Text style={styles.activityTime}>Yesterday, 4:12 PM</Text>
+            </View>
+          </View>
+        </Card>
+
+      </ScrollView>
+    </SafeAreaView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Theme.colors.background,
+  },
+  scroll: {
+    paddingBottom: Theme.spacing.xxl,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: Theme.spacing.lg,
+    paddingVertical: Theme.spacing.xl,
+  },
+  greeting: {
+    ...Theme.typography.caption,
+    color: Theme.colors.safe,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  title: {
+    ...Theme.typography.h1,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Theme.colors.safeLight,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: Theme.borderRadius.full,
+    gap: 6,
+  },
+  statusText: {
+    ...Theme.typography.caption,
+    color: Theme.colors.safe,
+    fontWeight: '700',
+  },
+  statsCard: {
+    marginHorizontal: Theme.spacing.lg,
+  },
+  sectionTitle: {
+    ...Theme.typography.h3,
+    marginBottom: Theme.spacing.md,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  statBox: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  statIcon: {
+    marginBottom: Theme.spacing.xs,
+  },
+  statCount: {
+    ...Theme.typography.h2,
+    marginBottom: 2,
+  },
+  statTitle: {
+    ...Theme.typography.small,
+    textAlign: 'center',
+  },
+  actionGrid: {
+    flexDirection: 'row',
+    paddingHorizontal: Theme.spacing.lg,
+    gap: Theme.spacing.md,
+    marginBottom: Theme.spacing.xl,
+  },
+  actionCard: {
+    flex: 1,
+    backgroundColor: Theme.colors.card,
+    borderRadius: Theme.borderRadius.lg,
+    padding: Theme.spacing.lg,
+    alignItems: 'center',
+    ...Theme.shadows.card,
+  },
+  iconWrapper: {
+    width: 48,
+    height: 48,
+    borderRadius: Theme.borderRadius.full,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Theme.spacing.sm,
+  },
+  actionTitle: {
+    ...Theme.typography.body,
+    fontWeight: '600',
+  },
+  recentCard: {
+    marginHorizontal: Theme.spacing.lg,
+  },
+  recentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Theme.spacing.md,
+  },
+  linkText: {
+    ...Theme.typography.body,
+    color: Theme.colors.primary,
+    fontWeight: '600',
+  },
+  activityItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Theme.spacing.md,
+  },
+  activityIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: Theme.borderRadius.full,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Theme.spacing.md,
+  },
+  activityContent: {
+    flex: 1,
+  },
+  activityTitle: {
+    ...Theme.typography.body,
+    fontWeight: '500',
+  },
+  activityTime: {
+    ...Theme.typography.small,
+  },
+});
