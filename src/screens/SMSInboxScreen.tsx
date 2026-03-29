@@ -1,14 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Modal, TouchableOpacity, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ShieldAlert, AlertTriangle, ShieldCheck, X } from 'lucide-react-native';
+import { useFocusEffect } from '@react-navigation/native';
 
 import { Theme } from '../theme';
 import { Header } from '../components/Header';
 import { RiskBadge } from '../components/RiskBadge';
-import { mockSmsData } from '../data/mockData';
-import { analyzeThreat } from '../lib/rulesEngine';
-import { saveThreat } from '../lib/storage';
+import { getStoredThreats } from '../lib/storage';
 import { ThreatAnalysisResult } from '../types';
 
 export const SMSInboxScreen = () => {
@@ -16,21 +15,27 @@ export const SMSInboxScreen = () => {
   const [selectedSms, setSelectedSms] = useState<ThreatAnalysisResult | null>(null);
   const [analyzedData, setAnalyzedData] = useState<ThreatAnalysisResult[]>([]);
 
-  useEffect(() => {
-    const processMessages = async () => {
-      const results = mockSmsData.map(msg => {
-        return analyzeThreat(msg.content, 'SMS', msg.sender, msg.id);
-      });
-      setAnalyzedData(results);
-      
-      for (const res of results) {
-        if (res.isFlagged) {
-          await saveThreat(res);
+  useFocusEffect(
+    React.useCallback(() => {
+      let isActive = true;
+      const loadMessages = async () => {
+        try {
+          const threats = await getStoredThreats();
+          if (isActive) {
+            const smsThreats = threats.filter(t => t.sourceType === 'SMS');
+            setAnalyzedData(smsThreats);
+          }
+        } catch (error) {
+          console.error('[SMSInboxScreen] Error loading SMS threats:', error);
         }
-      }
-    };
-    processMessages();
-  }, []);
+      };
+
+      loadMessages();
+      return () => {
+        isActive = false;
+      };
+    }, [])
+  );
 
   const renderSmsItem = (item: ThreatAnalysisResult) => {
     const isHighRisk = item.severity === 'high';
@@ -87,7 +92,15 @@ export const SMSInboxScreen = () => {
       />
       
       <ScrollView contentContainerStyle={styles.listContainer}>
-        {analyzedData.map(renderSmsItem)}
+        {analyzedData.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <ShieldCheck size={48} color={Theme.colors.safe} style={{ marginBottom: Theme.spacing.md }} />
+            <Text style={styles.emptyTitle}>Inboxes Secured</Text>
+            <Text style={styles.emptyText}>No suspicious or flagged SMS messages have been detected yet.</Text>
+          </View>
+        ) : (
+          analyzedData.map(renderSmsItem)
+        )}
       </ScrollView>
 
       {/* Detail Modal */}
@@ -335,5 +348,21 @@ const styles = StyleSheet.create({
     ...Theme.typography.body,
     color: Theme.colors.primary,
     fontWeight: '600',
+  },
+  emptyContainer: {
+    padding: Theme.spacing.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 60,
+  },
+  emptyTitle: {
+    ...Theme.typography.h3,
+    marginBottom: Theme.spacing.xs,
+  },
+  emptyText: {
+    ...Theme.typography.body,
+    color: Theme.colors.textSecondary,
+    textAlign: 'center',
+    paddingHorizontal: Theme.spacing.lg,
   },
 });
