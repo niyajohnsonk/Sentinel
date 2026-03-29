@@ -1,7 +1,7 @@
 // No third-party imports needed for base64 — uses React Native's fetch polyfill
 // which supports local file:// URIs and returns an ArrayBuffer on Hermes.
 
-export const GEMINI_API_KEY = 'AIzaSyDqSAdFbHPkp-7eUGbd8CiAG3q2NYiAjS0'; // TODO: Paste your Gemini API key here
+export const GEMINI_API_KEY = 'AIzaSyBG2Qki80GGvFRZp6-OD8YtCvtgkfqbH30'; // TODO: Paste your Gemini API key here
 export const GEMINI_MODEL = 'gemini-2.5-flash';
 
 export interface CallAnalysisResult {
@@ -26,24 +26,46 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
   return btoa(binary);
 }
 
-export async function transcribeAudioChunk(uri: string): Promise<{ text?: string, error?: string }> {
+export interface ChunkAnalysisResponse {
+  transcript: string;
+  chunkRiskScore: number;
+  reasons: string[];
+  matchedSignals: string[];
+  error?: string;
+}
+
+export async function analyzeAudioChunk(uri: string): Promise<ChunkAnalysisResponse> {
+  const fallbackResponse: ChunkAnalysisResponse = { transcript: '', chunkRiskScore: 0, reasons: [], matchedSignals: [] };
+  
   if (!GEMINI_API_KEY) {
     console.warn("No GEMINI_API_KEY provided.");
-    return { error: 'NO_API_KEY' };
+    return { ...fallbackResponse, error: 'NO_API_KEY' };
   }
 
   try {
-    // React Native's fetch polyfill supports local file:// URIs on both platforms.
     const fileRes = await fetch(uri);
     const buffer = await fileRes.arrayBuffer();
     const base64Audio = arrayBufferToBase64(buffer);
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
+    const promptText = `
+You are evaluating a 15-second phone audio chunk to determine if it contains scam language, urgency, authority impersonation, or payment requests.
+Wait for speech. If there is no speech, or if it is completely benign, keep the chunkRiskScore at 0. Evaluate only this chunk.
+Return a valid JSON object ONLY containing:
+{
+  "transcript": "the precise transcribed text of the speakers (Speaker 1:, Speaker 2:, etc)",
+  "chunkRiskScore": 0-100 integer (0 is benign, 100 is highly suspicious),
+  "reasons": ["short reason why this chunk is suspicious"],
+  "matchedSignals": ["signal name"]
+}
+If there are no reasons or signals, use empty arrays. Do not return markdown fences, just the JSON string.
+    `.trim();
+
     const payload = {
       contents: [{
          parts: [
-          { text: "Transcribe this audio chunk. Identify and separate the speakers, labeling them as 'Speaker 1:' and 'Speaker 2:' or similar. If there is only one speaker, just label 'Speaker 1:'. If no speech is detected, return an empty string. Only return the transcribed text." },
+          { text: promptText },
           {
             inline_data: {
               mime_type: "audio/mp4",
@@ -64,71 +86,37 @@ export async function transcribeAudioChunk(uri: string): Promise<{ text?: string
     });
 
     if (res.status === 429) {
-      return { error: 'QUOTA_EXCEEDED' };
+      return { ...fallbackResponse, error: 'QUOTA_EXCEEDED' };
     }
 
     const result = await res.json();
     if (result.error) {
-      console.error("Gemini Transcription Error:", result.error);
-      if (result.error.code === 429) return { error: 'QUOTA_EXCEEDED' };
-      return { error: 'API_ERROR' };
-    }
-
-    return { text: result.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "" };
-  } catch (err) {
-    console.error("Error in transcribeAudioChunk:", err);
-    return { error: 'NETWORK_ERROR' };
-  }
-} // Replaced batch transcriber as we reverted to 15s monolithic sliding chunks
-
-export async function analyzeConversation(history: string[]): Promise<CallAnalysisResult | ApiError | null> {
-  if (!GEMINI_API_KEY) {
-    return { error: 'NO_API_KEY' };
-  }
-
-  const transcriptText = history.join("\n");
-  if (!transcriptText.trim()) return null;
-
-  try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
-    const promptText = `
-You are evaluating a phone conversation to determine if it is a safe interaction or a scam attempt. The transcript is labeled with 'You:' (the local user) and 'Caller:' (the remote speaker). Assess the conversation objectively. It may be completely benign. Start the risk score low and only escalate it (above 40) if clear signs of digital fraud, authority impersonation, urgency, payment coercion, or fear tactics emerge. Do not flag generic greetings as high risk. Return a JSON object with: score (0-100), label (Safe/Suspicious/High Risk Scam), reasons (array of strings), matchedSignals (array of strings). Return only JSON, no other text.
-
-Transcript:
-${transcriptText}
-    `.trim();
-
-    const payload = {
-      contents: [{ parts: [{ text: promptText }] }],
-      generationConfig: {
-        temperature: 0.1,
-      }
-    };
-
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-
-    if (res.status === 429) {
-      return { error: 'QUOTA_EXCEEDED' };
-    }
-
-    const result = await res.json();
-    if (result.error) {
-       console.error("Gemini Analysis Error:", result.error);
-       if (result.error.code === 429) return { error: 'QUOTA_EXCEEDED' };
-       return { error: 'API_ERROR' };
+      console.error("Gemini Chunk Analysis Error:", result.error);
+      if (result.error.code === 429) return { ...fallbackResponse, error: 'QUOTA_EXCEEDED' };
+      return { ...fallbackResponse, error: 'API_ERROR' };
     }
 
     const rawText = result.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
-    // Remove potential markdown fences
+    if (!rawText) return fallbackResponse;
+
     const jsonStr = rawText.replace(/```json\n?|\n?```/g, "").trim();
-    const parsed = JSON.parse(jsonStr) as CallAnalysisResult;
-    return parsed;
+    
+    try {
+      const parsed = JSON.parse(jsonStr);
+      return {
+        transcript: parsed.transcript || "",
+        chunkRiskScore: typeof parsed.chunkRiskScore === 'number' ? parsed.chunkRiskScore : 0,
+        reasons: Array.isArray(parsed.reasons) ? parsed.reasons : [],
+        matchedSignals: Array.isArray(parsed.matchedSignals) ? parsed.matchedSignals : [],
+      };
+    } catch (e) {
+       console.error("Gemini JSON parse error:", e);
+       // Fallback on JSON parse failure: return raw text as transcript, no score delta
+       return { ...fallbackResponse, transcript: rawText };
+    }
+
   } catch (err) {
-    console.error("Error in analyzeConversation:", err);
-    return { error: 'NETWORK_ERROR' };
+    console.error("Error in analyzeAudioChunk:", err);
+    return { ...fallbackResponse, error: 'NETWORK_ERROR' };
   }
 }

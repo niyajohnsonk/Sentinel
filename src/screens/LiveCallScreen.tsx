@@ -11,7 +11,7 @@ import { ScoreRing } from '../components/ScoreRing';
 import { ActiveCallTranscriptChunk } from '../types';
 import { saveThreat } from '../lib/storage';
 import { generateId, analyzeThreat } from '../lib/rulesEngine';
-import { transcribeAudioChunk, analyzeConversation, CallAnalysisResult } from '../lib/callAnalysis';
+import { analyzeAudioChunk, CallAnalysisResult } from '../lib/callAnalysis';
 
 export const LiveCallScreen = () => {
   const [hasSessionStarted, setHasSessionStarted] = useState(false);
@@ -27,10 +27,13 @@ export const LiveCallScreen = () => {
   const analysisResultRef = useRef<CallAnalysisResult | null>(null);
   const hasTriggeredHapticsRef = useRef(false);
   const cooldownUntilRef = useRef<number>(0);
-  const timerRef = useRef<NodeJS.Timeout | null>(null); // For call duration and small timeouts
-  const monitoringTimerRef = useRef<NodeJS.Timeout | null>(null); // For rotating loops
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const monitoringTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isStoppingRef = useRef(false);
-  const lastAnalyzedChunkCount = useRef(0);
+  
+  const currentTotalScoreRef = useRef(0);
+  const currentReasonsRef = useRef<string[]>([]);
+  const currentSignalsRef = useRef<string[]>([]);
   
   const scrollViewRef = useRef<ScrollView>(null);
   
@@ -62,63 +65,129 @@ export const LiveCallScreen = () => {
     };
   }, []);
 
+  const accumulateAndUpdateLocalScore = (delta: number, absoluteScore: number | null, reasons: string[], signals: string[]) => {
+      // Monotonic local escalation: if delta > 0, we add it. If absolute > current, we jump.
+      let newScore = currentTotalScoreRef.current;
+      if (absoluteScore !== null) {
+          newScore = Math.max(newScore, absoluteScore);
+      } else {
+          newScore = Math.min(100, Math.max(newScore, newScore + delta));
+      }
+      
+      currentTotalScoreRef.current = newScore;
+      
+      // Merge unique reasons up to 5
+      const mergedReasons = Array.from(new Set([...currentReasonsRef.current, ...reasons])).slice(-5);
+      currentReasonsRef.current = mergedReasons;
+
+      const mergedSignals = Array.from(new Set([...currentSignalsRef.current, ...signals]));
+      currentSignalsRef.current = mergedSignals;
+
+      let label: "Safe" | "Suspicious" | "High Risk Scam" = "Safe";
+      if (newScore >= 70) label = "High Risk Scam";
+      else if (newScore >= 40) label = "Suspicious";
+
+      updateScreenWithResult({
+          score: newScore,
+          label,
+          reasons: mergedReasons,
+          matchedSignals: mergedSignals
+      });
+  };
+
   const processAudioChunk = async (uri: string) => {
+    console.log(`[LiveCall] processAudioChunk: starting processing for URI: ${uri}`);
     if (Date.now() < cooldownUntilRef.current) {
+       console.log(`[LiveCall] processAudioChunk: In cooldown. Skipping transcription.`);
        if (!isAiPaused) setIsAiPaused(true);
+       handleNewTranscriptText("[System: Transcription paused due to Quota API limit]");
+       
+       const localResult = analyzeThreat(transcriptTextRef.current, 'CALL', 'Live Audio Analysis');
+       accumulateAndUpdateLocalScore(0, localResult.score, localResult.reasons, localResult.matchedSignals);
        return;
     }
 
+    console.log(`[LiveCall] chunk request start for URI: ${uri}`);
     setIsTranscribing(true);
-    const response = await transcribeAudioChunk(uri);
+    const response = await analyzeAudioChunk(uri);
     setIsTranscribing(false);
 
     if (response.error) {
+       console.log(`[LiveCall] chunk failure for URI: ${uri} - Error: ${response.error}`);
        if (response.error === 'QUOTA_EXCEEDED') {
+          console.log(`[LiveCall] processAudioChunk: QUOTA_EXCEEDED, setting cooldown.`);
           cooldownUntilRef.current = Date.now() + 60000;
           setIsAiPaused(true);
        }
+       handleNewTranscriptText(`[System: Transcription failed - ${response.error}]`);
+       
+       const localResult = analyzeThreat(transcriptTextRef.current, 'CALL', 'Live Audio Analysis');
+       accumulateAndUpdateLocalScore(0, localResult.score, localResult.reasons, localResult.matchedSignals);
        return; 
     }
 
-    if (response.text) {
-       handleNewTranscriptText(response.text);
+    console.log(`[LiveCall] chunk success for URI: ${uri}. Text length: ${response.transcript.length}`);
+    if (response.transcript && response.transcript.trim().length > 0) {
+       handleNewTranscriptText(response.transcript.trim());
+    } else {
+       console.log(`[LiveCall] processAudioChunk: transcription returned empty text, appending silence indicator.`);
+       handleNewTranscriptText("[Silence detected]");
     }
+
+    if (isAiPaused) setIsAiPaused(false);
+    accumulateAndUpdateLocalScore(response.chunkRiskScore, null, response.reasons, response.matchedSignals);
   };
 
   const startNextRecordingChunk = async () => {
-     if (isStoppingRef.current) return;
+     console.log(`[LiveCall] startNextRecordingChunk initiated. isStoppingRef: ${isStoppingRef.current}`);
+     if (isStoppingRef.current) {
+         console.log(`[LiveCall] loop stopped because isStoppingRef is true.`);
+         return;
+     }
      
      // Stop existing if any
      let previousUri = null;
      if (recordingRef.current) {
+        console.log(`[LiveCall] chunk recording stop requested.`);
         try {
            await recordingRef.current.stopAndUnloadAsync();
            previousUri = recordingRef.current.getURI();
+           console.log(`[LiveCall] chunk URI created: ${previousUri}`);
         } catch (e) {
-           console.error("Error stopping recording chunk", e);
+           console.error("[LiveCall] Error stopping recording chunk", e);
         }
         recordingRef.current = null;
      }
 
      // Process previous chunk asynchronously
      if (previousUri) {
-         processAudioChunk(previousUri);
+         processAudioChunk(previousUri).catch(e => console.error("[LiveCall] processAudioChunk threw an exception", e));
      }
 
-     if (isStoppingRef.current) return;
+     if (isStoppingRef.current) {
+        console.log(`[LiveCall] loop stopped after processing previous chunk because isStoppingRef is true.`);
+        return;
+     }
 
      // Start new recording
      try {
+       console.log(`[LiveCall] chunk recording start initiated...`);
        const { recording } = await Audio.Recording.createAsync(
          Audio.RecordingOptionsPresets.HIGH_QUALITY
        );
        recordingRef.current = recording;
        setIsRecording(true);
+       console.log(`[LiveCall] chunk recording start SUCCESS.`);
        
        // Schedule next rotation after 15s
-       monitoringTimerRef.current = setTimeout(startNextRecordingChunk, 15000);
+       // FIX: Use an arrow function so it always captures the freshest startNextRecordingChunk if needed (though it's still constant scope)
+       console.log(`[LiveCall] scheduling next chunk recording in 15 seconds.`);
+       monitoringTimerRef.current = setTimeout(() => {
+           console.log(`[LiveCall] monitoring timer fired, executing startNextRecordingChunk`);
+           startNextRecordingChunk();
+       }, 15000);
      } catch (e) {
-       console.error("Failed to start chunk:", e);
+       console.error("[LiveCall] Failed to start chunk. Loop stopped.", e);
        setIsRecording(false);
        setHasSessionStarted(false);
      }
@@ -162,6 +231,10 @@ export const LiveCallScreen = () => {
   };
 
   const handleNewTranscriptText = (text: string) => {
+    if (!text.startsWith('[System:') && !text.startsWith('[Silence')) {
+      transcriptTextRef.current += (transcriptTextRef.current.length > 0 ? '\n' : '') + text;
+    }
+
     const newChunk: ActiveCallTranscriptChunk = {
       id: Math.random().toString(),
       text: text,
@@ -169,7 +242,11 @@ export const LiveCallScreen = () => {
       isCaller: false
     };
 
-    setTranscriptChunks(prevChunks => [...prevChunks, newChunk]);
+    setTranscriptChunks(prevChunks => {
+       const nextArr = [...prevChunks, newChunk];
+       console.log(`[LiveCall] transcript array length after append: ${nextArr.length}`);
+       return nextArr;
+    });
   };
 
   const updateScreenWithResult = (result: CallAnalysisResult) => {
@@ -199,58 +276,7 @@ export const LiveCallScreen = () => {
       }
   };
 
-  const analyzeHistory = async (chunks: ActiveCallTranscriptChunk[]) => {
-    const historyStrings = chunks.map(c => c.text);
-    transcriptTextRef.current = historyStrings.join('\n');
-    
-    // Check cooldown
-    if (Date.now() < cooldownUntilRef.current) {
-      if (!isAiPaused) setIsAiPaused(true);
-      const localResult = analyzeThreat(transcriptTextRef.current, 'CALL', 'Live Audio Analysis');
-      updateScreenWithResult({
-         score: localResult.score,
-         label: localResult.label as "Safe" | "Suspicious" | "High Risk Scam",
-         reasons: localResult.reasons,
-         matchedSignals: localResult.matchedSignals
-      });
-      return;
-    }
 
-    // Free tier conservation: run every 2 chunks, at least 2 chunks big
-    if (chunks.length < 2 || chunks.length % 2 !== 0) {
-      return;
-    }
-
-    const result = await analyzeConversation(historyStrings);
-    if (!result) return;
-
-    if ('error' in result) {
-       if (result.error === 'QUOTA_EXCEEDED') {
-           cooldownUntilRef.current = Date.now() + 60000;
-       }
-       setIsAiPaused(true);
-       
-       const localResult = analyzeThreat(transcriptTextRef.current, 'CALL', 'Live Audio Analysis');
-       updateScreenWithResult({
-         score: localResult.score,
-         label: localResult.label as "Safe" | "Suspicious" | "High Risk Scam",
-         reasons: localResult.reasons,
-         matchedSignals: localResult.matchedSignals
-       });
-       return;
-    }
-    
-    if (isAiPaused) setIsAiPaused(false);
-    updateScreenWithResult(result);
-  };
-
-  useEffect(() => {
-    // Only analyze when transcript has grown by at least 2 chunks, to reduce API calls
-    if (transcriptChunks.length >= lastAnalyzedChunkCount.current + 2) {
-       lastAnalyzedChunkCount.current = transcriptChunks.length;
-       analyzeHistory(transcriptChunks);
-    }
-  }, [transcriptChunks]);
 
   const stopSession = async () => {
     isStoppingRef.current = true;
@@ -298,7 +324,9 @@ export const LiveCallScreen = () => {
      transcriptTextRef.current = '';
      analysisResultRef.current = null;
      cooldownUntilRef.current = 0;
-     lastAnalyzedChunkCount.current = 0;
+     currentTotalScoreRef.current = 0;
+     currentReasonsRef.current = [];
+     currentSignalsRef.current = [];
      setIsAiPaused(false);
   };
 
