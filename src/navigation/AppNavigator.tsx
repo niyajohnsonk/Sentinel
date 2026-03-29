@@ -42,37 +42,37 @@ const TabNavigator = () => {
         tabBarInactiveTintColor: Theme.colors.textSecondary,
       }}
     >
-      <Tab.Screen 
-        name="Home" 
+      <Tab.Screen
+        name="Home"
         component={HomeScreen}
         options={{
           tabBarIcon: ({ color, size }) => <Home color={color} size={size} />,
         }}
       />
-      <Tab.Screen 
-        name="Call" 
+      <Tab.Screen
+        name="Call"
         component={LiveCallScreen}
         options={{
           tabBarIcon: ({ color, size }) => <Phone color={color} size={size} />,
         }}
       />
-      <Tab.Screen 
-        name="SMS" 
+      <Tab.Screen
+        name="SMS"
         component={SMSInboxScreen}
         options={{
           tabBarIcon: ({ color, size }) => <MessageSquare color={color} size={size} />,
         }}
       />
-      <Tab.Screen 
-        name="URLHost" 
+      <Tab.Screen
+        name="URLHost"
         component={URLScannerScreen}
         options={{
           tabBarLabel: 'URL Scan',
           tabBarIcon: ({ color, size }) => <LinkIcon color={color} size={size} />,
         }}
       />
-      <Tab.Screen 
-        name="Vault" 
+      <Tab.Screen
+        name="Vault"
         component={ThreatVaultScreen}
         options={{
           tabBarIcon: ({ color, size }) => <Shield color={color} size={size} />,

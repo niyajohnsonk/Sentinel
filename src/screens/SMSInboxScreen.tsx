@@ -134,49 +134,57 @@ export const SMSInboxScreen = () => {
             <ScrollView contentContainerStyle={styles.modalScroll}>
               <View style={styles.modalTopSection}>
                 <RiskBadge level={selectedSms.severity} size="large" />
-                <View style={styles.scoreCircle}>
-                  <Text style={[styles.scoreNumber, { color: selectedSms.severity === 'high' ? Theme.colors.danger : selectedSms.severity === 'medium' ? Theme.colors.warning : Theme.colors.safe }]}>
-                    {selectedSms.score}
-                  </Text>
-                  <Text style={styles.scoreLabel}>Risk Score</Text>
-                </View>
               </View>
 
-              <Text style={styles.sectionTitle}>Sender</Text>
-              <Text style={styles.modalText}>{selectedSms.sourceLabel}</Text>
-
-              <Text style={styles.sectionTitle}>Full Message</Text>
               <View style={styles.messageBox}>
+                <Text style={styles.senderHeader}>{selectedSms.sourceLabel}</Text>
                 <Text style={styles.messageContent}>{selectedSms.content}</Text>
               </View>
 
-              <Text style={styles.sectionTitle}>Analysis</Text>
-              <Text style={styles.modalText}>{selectedSms.label}</Text>
-              <View style={styles.reasonsList}>
-                {selectedSms.reasons.map((r, i) => (
-                  <View key={i} style={styles.reasonRow}>
-                    <View style={styles.bullet} />
-                    <Text style={styles.reasonText}>{r}</Text>
-                  </View>
-                ))}
+              <Text style={styles.sectionTitle}>Security Analysis</Text>
+              
+              <View style={styles.analysisCard}>
+                <Text style={styles.analysisSubtitle}>What we noticed</Text>
+                {selectedSms.reasons.map((r, i) => {
+                  let cleaned = r.replace(/\[ML\]\s*/g, '').replace(/\[Rules\]\s*/g, '');
+                  // Optional friendly rewrites
+                  if (cleaned.toLowerCase().includes('authority')) cleaned = "This message pretends to be a bank, government, or authority figure";
+                  else if (cleaned.toLowerCase().includes('urgency')) cleaned = "It uses pressure to push you into immediate action";
+                  else if (cleaned.toLowerCase().includes('link')) cleaned = "It contains a suspicious, shortened, or misleading web link";
+                  else if (cleaned.toLowerCase().includes('phish')) cleaned = "It matches patterns commonly used in phishing campaigns";
+                  else if (cleaned.toLowerCase().includes('coercion')) cleaned = "It demands a payment, penalty, or wire transfer";
+                  else if (cleaned.toLowerCase().includes('otp') || cleaned.toLowerCase().includes('credential')) cleaned = "It asks you to verify sensitive account information or share a password";
+                  else if (cleaned.toLowerCase().includes('fear')) cleaned = "It uses fear tactics, such as legal threats or account suspension";
+                  else cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+
+                  return (
+                    <View key={`reason-${i}`} style={styles.reasonRow}>
+                      <View style={styles.bullet} />
+                      <Text style={styles.reasonText}>{cleaned}</Text>
+                    </View>
+                  );
+                })}
+
+                {selectedSms.matchedSignals && selectedSms.matchedSignals.length > 0 && (
+                  <>
+                    <Text style={[styles.analysisSubtitle, { marginTop: 16 }]}>Why it may be unsafe</Text>
+                    <View style={styles.tagsContainer}>
+                      {selectedSms.matchedSignals.map((signal, i) => {
+                         const cleanSig = signal.replace(/\[ML\]\s*/g, '').replace(/\[Rules\]\s*/g, '');
+                         return (
+                           <View key={`sig-${i}`} style={styles.cleanTag}>
+                             <Text style={styles.cleanTagText}>{cleanSig}</Text>
+                           </View>
+                         );
+                      })}
+                    </View>
+                  </>
+                )}
               </View>
 
-              {selectedSms.matchedSignals && selectedSms.matchedSignals.length > 0 && (
-                <>
-                  <Text style={styles.sectionTitle}>Extracted Threats</Text>
-                  {selectedSms.matchedSignals.map((signal, i) => (
-                    <View key={i} style={styles.phraseBox}>
-                      <Text style={styles.phraseText}>{signal}</Text>
-                    </View>
-                  ))}
-                </>
-              )}
-
-              <Text style={[styles.sectionTitle, { color: Theme.colors.primary, marginTop: 24 }]}>
-                Recommended Action
-              </Text>
+              <Text style={styles.sectionTitle}>Recommended Action</Text>
               <View style={styles.actionBox}>
-                <Text style={styles.actionText}>{selectedSms.recommendedAction}</Text>
+                <Text style={styles.actionText}>{selectedSms.recommendedAction || "Stay vigilant and do not reply."}</Text>
               </View>
             </ScrollView>
           )}
@@ -268,91 +276,90 @@ const styles = StyleSheet.create({
     paddingBottom: Theme.spacing.xxl,
   },
   modalTopSection: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: Theme.spacing.xl,
-  },
-  scoreCircle: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    borderWidth: 4,
-    borderColor: Theme.colors.border,
-  },
-  scoreNumber: {
-    ...Theme.typography.h2,
-    lineHeight: 28,
-  },
-  scoreLabel: {
-    ...Theme.typography.small,
-    fontSize: 10,
+    marginTop: Theme.spacing.sm,
   },
   sectionTitle: {
     ...Theme.typography.body,
     fontWeight: '600',
     color: Theme.colors.textSecondary,
-    marginBottom: Theme.spacing.xs,
+    marginBottom: Theme.spacing.sm,
     marginTop: Theme.spacing.lg,
-  },
-  modalText: {
-    ...Theme.typography.body,
-    fontWeight: '500',
   },
   messageBox: {
     backgroundColor: Theme.colors.card,
-    padding: Theme.spacing.md,
-    borderRadius: Theme.borderRadius.md,
+    padding: Theme.spacing.lg,
+    borderRadius: Theme.borderRadius.lg,
     borderWidth: 1,
     borderColor: Theme.colors.border,
+  },
+  senderHeader: {
+    ...Theme.typography.body,
+    fontWeight: '700',
+    color: Theme.colors.textPrimary,
+    marginBottom: Theme.spacing.xs,
   },
   messageContent: {
     ...Theme.typography.body,
     lineHeight: 24,
+    color: Theme.colors.textPrimary,
   },
-  reasonsList: {
-    marginTop: Theme.spacing.xs,
+  analysisCard: {
+    backgroundColor: Theme.colors.card,
+    padding: Theme.spacing.lg,
+    borderRadius: Theme.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: Theme.colors.border,
+  },
+  analysisSubtitle: {
+    ...Theme.typography.body,
+    fontWeight: '600',
+    color: Theme.colors.textPrimary,
+    marginBottom: Theme.spacing.sm,
   },
   reasonRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: 6,
-    paddingRight: Theme.spacing.lg,
+    marginBottom: 8,
+    paddingRight: Theme.spacing.sm,
   },
   bullet: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: Theme.colors.textSecondary,
+    backgroundColor: Theme.colors.primary,
     marginTop: 8,
-    marginRight: 8,
+    marginRight: 10,
   },
   reasonText: {
     ...Theme.typography.body,
+    lineHeight: 22,
+    color: Theme.colors.textPrimary,
   },
-  phraseBox: {
-    backgroundColor: Theme.colors.dangerLight,
-    padding: Theme.spacing.md,
-    borderRadius: Theme.borderRadius.md,
-    marginBottom: Theme.spacing.sm,
+  tagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 4,
   },
-  phraseText: {
-    ...Theme.typography.body,
-    color: Theme.colors.danger,
-    fontStyle: 'italic',
-    marginBottom: 4,
+  cleanTag: {
+    backgroundColor: Theme.colors.background,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: Theme.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: Theme.colors.border,
   },
-  phraseReason: {
-    ...Theme.typography.caption,
-    color: Theme.colors.danger,
-    fontWeight: '600',
+  cleanTagText: {
+    ...Theme.typography.small,
+    color: Theme.colors.textSecondary,
+    fontWeight: '500',
   },
   actionBox: {
     backgroundColor: Theme.colors.primaryLight,
-    padding: Theme.spacing.md,
-    borderRadius: Theme.borderRadius.md,
+    padding: Theme.spacing.lg,
+    borderRadius: Theme.borderRadius.lg,
     borderLeftWidth: 4,
     borderLeftColor: Theme.colors.primary,
   },
@@ -360,6 +367,7 @@ const styles = StyleSheet.create({
     ...Theme.typography.body,
     color: Theme.colors.primary,
     fontWeight: '600',
+    lineHeight: 22,
   },
   emptyContainer: {
     padding: Theme.spacing.xl,
