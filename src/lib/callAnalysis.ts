@@ -29,13 +29,14 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 export interface ChunkAnalysisResponse {
   transcript: string;
   chunkRiskScore: number;
+  riskLabel: "Safe" | "Suspicious" | "High Risk Scam";
   reasons: string[];
   matchedSignals: string[];
   error?: string;
 }
 
 export async function analyzeAudioChunk(uri: string): Promise<ChunkAnalysisResponse> {
-  const fallbackResponse: ChunkAnalysisResponse = { transcript: '', chunkRiskScore: 0, reasons: [], matchedSignals: [] };
+  const fallbackResponse: ChunkAnalysisResponse = { transcript: '', chunkRiskScore: 0, riskLabel: 'Safe', reasons: [], matchedSignals: [] };
   
   if (!GEMINI_API_KEY) {
     console.warn("No GEMINI_API_KEY provided.");
@@ -50,13 +51,20 @@ export async function analyzeAudioChunk(uri: string): Promise<ChunkAnalysisRespo
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
     const promptText = `
-You are evaluating a 15-second phone audio chunk to determine if it contains scam language, urgency, authority impersonation, or payment requests.
-Wait for speech. If there is no speech, or if it is completely benign, keep the chunkRiskScore at 0. Evaluate only this chunk.
-Return a valid JSON object ONLY containing:
+You are actively monitoring a 15-second phone audio chunk for scam language, urgency, authority impersonation, or payment requests.
+CRUCIAL: Do NOT wait until you are fully confident to assign a score. Always provide your best dynamic, progressive risk estimate based ONLY on this current chunk. Even if harmless, return a low base score (e.g. 5-20). Build suspicion progressively as stronger scam signals appear. Never return a null analysis.
+
+Score Guide:
+- 0-20: Safe/Neutral (no apparent risk, just normal chatter).
+- 21-69: Suspicious (probing questions, minor urgency, strange requests).
+- 70-100: High Risk Scam (demanding gift cards/crypto, extreme threats, mimicking IRS/Police).
+
+Return a valid JSON object ONLY containing exactly these 5 keys:
 {
   "transcript": "the precise transcribed text of the speakers (Speaker 1:, Speaker 2:, etc)",
-  "chunkRiskScore": 0-100 integer (0 is benign, 100 is highly suspicious),
-  "reasons": ["short reason why this chunk is suspicious"],
+  "chunkRiskScore": 0-100 integer (current estimate for this chunk),
+  "riskLabel": "Safe" or "Suspicious" or "High Risk Scam",
+  "reasons": ["short reason why this chunk scored what it did"],
   "matchedSignals": ["signal name"]
 }
 If there are no reasons or signals, use empty arrays. Do not return markdown fences, just the JSON string.
@@ -106,6 +114,7 @@ If there are no reasons or signals, use empty arrays. Do not return markdown fen
       return {
         transcript: parsed.transcript || "",
         chunkRiskScore: typeof parsed.chunkRiskScore === 'number' ? parsed.chunkRiskScore : 0,
+        riskLabel: parsed.riskLabel || "Safe",
         reasons: Array.isArray(parsed.reasons) ? parsed.reasons : [],
         matchedSignals: Array.isArray(parsed.matchedSignals) ? parsed.matchedSignals : [],
       };

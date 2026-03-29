@@ -65,13 +65,23 @@ export const LiveCallScreen = () => {
     };
   }, []);
 
-  const accumulateAndUpdateLocalScore = (delta: number, absoluteScore: number | null, reasons: string[], signals: string[]) => {
-      // Monotonic local escalation: if delta > 0, we add it. If absolute > current, we jump.
+  const accumulateAndUpdateLocalScore = (chunkEstimate: number, absoluteScore: number | null, reasons: string[], signals: string[]) => {
       let newScore = currentTotalScoreRef.current;
+      
       if (absoluteScore !== null) {
+          // Local rules return an absolute total
           newScore = Math.max(newScore, absoluteScore);
       } else {
-          newScore = Math.min(100, Math.max(newScore, newScore + delta));
+          // Gemini returns a dynamic chunk estimate (0-100).
+          // To ensure safe calls remain low, we do not linearly add harmless scores.
+          if (chunkEstimate < 25) {
+             // Safe chunks establish a baseline but do not infinitely stack
+             newScore = Math.max(newScore, chunkEstimate);
+          } else {
+             // Suspicious chunks recursively stack to build tension progressively
+             // e.g., two 40-suspicious chunks = 40 + (40 * 0.5) = 60.
+             newScore = Math.min(100, Math.max(newScore, newScore + Math.floor(chunkEstimate * 0.4)));
+          }
       }
       
       currentTotalScoreRef.current = newScore;
