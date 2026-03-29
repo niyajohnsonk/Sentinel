@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, TextInput, KeyboardAvoidingView, Platform, Keyb
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Link2, ShieldAlert, CheckCircle2 } from 'lucide-react-native';
 import * as ExpoClipboard from 'expo-clipboard';
+import * as Haptics from 'expo-haptics';
+import { Vibration } from 'react-native';
 
 import { Theme } from '../theme';
 import { Header } from '../components/Header';
@@ -36,6 +38,12 @@ export const URLScannerScreen = () => {
       setResult(analysis);
       if (analysis.isFlagged) {
         saveThreat(analysis);
+      }
+      if (analysis.severity === 'high') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        Vibration.vibrate([200, 400, 200, 400]);
+      } else if (analysis.severity === 'medium') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       }
       setIsScanning(false);
       setHasScanned(true);
@@ -82,6 +90,12 @@ export const URLScannerScreen = () => {
         setClipboardResult(analysis);
         if (analysis.isFlagged) {
           saveThreat(analysis);
+        }
+        if (analysis.severity === 'high') {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          Vibration.vibrate([200, 400, 200, 400]);
+        } else if (analysis.severity === 'medium') {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         }
       } else if (manual) {
         setClipboardUrl('');

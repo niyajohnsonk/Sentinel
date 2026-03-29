@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, Animated as RNAnimated, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Animated as RNAnimated, Pressable, Vibration } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Phone, AlertOctagon, ShieldX } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
@@ -280,6 +280,8 @@ export const LiveCallScreen = () => {
 
       if (result.score >= 70 && !hasTriggeredHapticsRef.current) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        // Sustained repeating vibration pattern: wait 400ms, vibrate 600ms, pause 400ms — loops
+        Vibration.vibrate([400, 600, 400, 600], true);
         hasTriggeredHapticsRef.current = true;
       } else if (result.score < 70) {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -299,6 +301,7 @@ export const LiveCallScreen = () => {
     
     setIsRecording(false);
     setHasSessionStarted(false);
+    Vibration.cancel();
 
     if (analysisResultRef.current && analysisResultRef.current.score >= 70) {
       await saveThreat({
@@ -331,6 +334,7 @@ export const LiveCallScreen = () => {
      setTranscriptChunks([]);
      setAnalysisResult(null);
      hasTriggeredHapticsRef.current = false;
+     Vibration.cancel();
      transcriptTextRef.current = '';
      analysisResultRef.current = null;
      cooldownUntilRef.current = 0;

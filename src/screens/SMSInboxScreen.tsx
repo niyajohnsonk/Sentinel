@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, ScrollView, Modal, TouchableOpacity, Switch } f
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ShieldAlert, AlertTriangle, ShieldCheck, X } from 'lucide-react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import * as Haptics from 'expo-haptics';
+import { Vibration } from 'react-native';
 
 import { Theme } from '../theme';
 import { Header } from '../components/Header';
@@ -45,7 +47,17 @@ export const SMSInboxScreen = () => {
       <TouchableOpacity 
         key={item.id} 
         style={styles.smsItem}
-        onPress={() => setSelectedSms(item)}
+        onPress={() => {
+          if (item.severity === 'high') {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+            Vibration.vibrate([100, 300, 100, 300]);
+          } else if (item.severity === 'medium') {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+          } else {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          }
+          setSelectedSms(item);
+        }}
         activeOpacity={0.7}
       >
         <View style={styles.smsHeader}>

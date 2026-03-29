@@ -1,7 +1,7 @@
 // No third-party imports needed for base64 — uses React Native's fetch polyfill
 // which supports local file:// URIs and returns an ArrayBuffer on Hermes.
 
-export const GEMINI_API_KEY = 'AIzaSyBG2Qki80GGvFRZp6-OD8YtCvtgkfqbH30'; // TODO: Paste your Gemini API key here
+export const GEMINI_API_KEY = 'AIzaSyBUPaugC675rwxDCzuILr2mGOI2KS2WM3A'; // TODO: Paste your Gemini API key here
 export const GEMINI_MODEL = 'gemini-2.5-flash';
 
 export interface CallAnalysisResult {
