@@ -2,7 +2,7 @@
 
 # dependencies
 node_modules/
-
+CLAUDE
 # Expo
 .expo/
 dist/
