@@ -2,10 +2,10 @@
 
 A mobile threat-detection app built as a hackathon project to help users identify scam SMS, suspicious URLs, and risky live-call patterns in real time.
 
-> Built for: [Hackathon Name]  
-> Team: [Team Name]  
-> Team Members: [Member 1], [Member 2], [Member 3], [Member 4]  
-> Project Type: [Hackathon track / category]
+> Built for: Hack4Innovation 2026, VESIT-Chembur, India  
+> Team: Team Sentinel  
+> Team Members: Krish Pinto, Hilda Nadar, Niya Johnson  
+> Project Type: Software Track
 
 ## Overview
 
