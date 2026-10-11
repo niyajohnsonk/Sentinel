@@ -143,11 +143,8 @@ Handles live call audio analysis. Only used by `LiveCallScreen`.
 
 **Fallback:** On 429 (quota exceeded), sets a 60-second global cooldown flag and falls back to local rules engine on the transcript text (if any).
 
-**CRITICAL — API key is hardcoded:**
-```
-AIzaSyBUPaugC675rwxDCzuILr2mGOI2KS2WM3A
-```
-This must be moved to an environment variable or a backend proxy before any deployment or further public sharing.
+**CRITICAL — do not commit the API key to the repository.**
+Use an environment variable such as `EXPO_PUBLIC_GEMINI_API_KEY` or a secure backend proxy before any deployment or public sharing.
 
 **Limitations:**
 - Quota exhaustion has no recovery UI — user just sees "local detection mode"

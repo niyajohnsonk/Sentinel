@@ -94,6 +94,22 @@ Sentinel/
 npm install
 ```
 
+### Environment setup
+
+Create a local environment file from the template and add your own Gemini API key:
+
+```bash
+cp .env.example .env
+```
+
+Then update `.env` with your key:
+
+```bash
+EXPO_PUBLIC_GEMINI_API_KEY=your_key_here
+```
+
+> Never commit real secrets to the repository. Keep `.env` local and do not share it publicly.
+
 ### Start the app
 
 ```bash
@@ -117,12 +133,15 @@ This project was created as part of a hackathon and is intended as a functional 
 
 ## Important Security / Production Notes
 
-This project includes demo-grade logic and a few placeholders that should be tightened before public release or deployment:
+This project is a hackathon prototype and should not be treated as a production-ready security product without additional hardening.
 
-- API keys should be moved to secure environment variables
-- onboarding toggles are currently stubbed and not fully enforced
-- background monitoring is limited by mobile OS constraints
-- the app is designed as a prototype and not a full production-grade security product
+For real-world deployment, please ensure:
+
+- any API keys or secret tokens are stored in secure environment variables or a backend service, never directly in the app client
+- AI or external service calls are routed through a trusted backend or proxy instead of exposing secrets to users
+- user privacy, consent, and permission handling are reviewed before launch
+- onboarding settings and background monitoring features are fully implemented before release
+- the app is tested under real-world conditions before public deployment
 
 
 ## Future Improvements
